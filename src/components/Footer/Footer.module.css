@@ -9,3 +9,12 @@
 .footer a {
   color: inherit;
 }
+
+/* .colored {
+  height: 50%;
+  width: 100%;
+  position: fixed;
+  bottom: 0;
+  background-color: rgb(163, 220, 220);
+  z-index: -1;
+} */
