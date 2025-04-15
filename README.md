@@ -1,4 +1,4 @@
-# Character Creation Workshop
+# ✨ Character Creation Workshop
 
 In this workshop, I built a Sims-style character creation screen.
 
