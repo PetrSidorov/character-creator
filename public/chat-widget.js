@@ -218,7 +218,11 @@ class ChatWidget extends HTMLElement {
     let res;
     if (method === "query") {
       url.searchParams.set("input", JSON.stringify({ json: input ?? {} }));
-      res = await fetch(url.toString(), { method: "GET", headers });
+      res = await fetch(url.toString(), {
+        method: "GET",
+        headers,
+        credentials: "include", // ✅ add this
+      });
     } else {
       res = await fetch(url.toString(), {
         method: "POST",
@@ -233,7 +237,9 @@ class ChatWidget extends HTMLElement {
 
     // tRPC wraps response in { result: { data: ... } }
     if (json.error) throw new Error(json.error.message);
-    return json.result?.data ?? json;
+    const data = json.result?.data ?? json;
+    // unwrap superjson if present
+    return data?.json ?? data;
   }
 
   // ─── Session persistence ──────────────────────────────────────────────────
@@ -316,6 +322,51 @@ class ChatWidget extends HTMLElement {
     if (res?.content) {
       this.addMessage(res.content, "ai");
     }
+  }
+
+  // ─── Streaming ────────────────────────────────────────────────────────────
+
+  get streamUrl() {
+    return this.apiUrl.replace("/api/customer-trpc", "/api/customer-stream");
+  }
+
+  async streamMessage(content, onChunk) {
+    const res = await fetch(this.streamUrl, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        ...(this.apiKey && { "x-api-key": this.apiKey }),
+        ...(this._customerToken && { "Authorization": `Bearer ${this._customerToken}` }),
+      },
+      credentials: "include",
+      body: JSON.stringify({
+        chatId: this.chatId,
+        content,
+        messages: this.messages.map(m => ({
+          role: m.type === "user" ? "user" : "assistant",
+          content: m.content,
+        })),
+      }),
+    });
+
+    if (!res.ok) throw new Error(`Stream failed: ${res.status}`);
+
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder();
+    let fullText = "";
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) {
+        onChunk(fullText, true); // ✅ signal completion
+        break;
+      }
+      const chunk = decoder.decode(value, { stream: true });
+      fullText += chunk;
+      onChunk(fullText, false);
+    }
+
+    return fullText;
   }
 
   async loadExistingChat(chatId) {
@@ -411,7 +462,6 @@ class ChatWidget extends HTMLElement {
     const input = this.shadowRoot.getElementById("input");
     const sendBtn = this.shadowRoot.getElementById("send-btn");
     const typing = this.shadowRoot.getElementById("typing");
-    const messages = this.shadowRoot.getElementById("messages");
 
     const text = input.value.trim();
     if (!text || this.isPending) return;
@@ -423,22 +473,20 @@ class ChatWidget extends HTMLElement {
 
     this.addMessage(text, "user");
     typing.classList.add("visible");
-    messages.scrollTop = messages.scrollHeight;
+
+    // Add an empty AI bubble that we'll stream into
+    const aiMsgId = `ai-${Date.now()}`;
+    this.addStreamingMessage(aiMsgId);
 
     try {
-      const res = await this.trpc("aiMessage.send", {
-        chatId: this.chatId,
-        content: text,
-        ...(this.prechatSubmitted && this.prechatData.name && { visitorName: this.prechatData.name }),
-        ...(this.prechatSubmitted && this.prechatData.email && { visitorEmail: this.prechatData.email }),
-      }, "mutation");
-
+      await this.streamMessage(text, (fullText, done) => {
+        this.updateStreamingMessage(aiMsgId, fullText, done);
+      });
       typing.classList.remove("visible");
-      this.addMessage(res?.content ?? "No response received.", "ai");
     } catch (err) {
       typing.classList.remove("visible");
       console.error("[ChatWidget] send failed", err);
-      this.addMessage("Something went wrong. Please try again.", "ai");
+      this.updateStreamingMessage(aiMsgId, "Something went wrong. Please try again.");
     } finally {
       this.isPending = false;
       sendBtn.disabled = !input.value.trim() || !this.isWithinBusinessHours();
@@ -446,6 +494,31 @@ class ChatWidget extends HTMLElement {
   }
 
   // ─── Business hours ────────────────────────────────────────────────────────
+
+  addStreamingMessage(id) {
+    const messages = this.shadowRoot.getElementById("messages");
+    const row = document.createElement("div");
+    row.className = "msg-row ai";
+    row.id = id;
+    row.innerHTML = `
+    <div class="bubble streaming-bubble"></div>
+    <div class="msg-meta">${this.formatTime(new Date())}</div>
+  `;
+    messages.appendChild(row);
+    messages.scrollTop = messages.scrollHeight;
+  }
+
+  updateStreamingMessage(id, text, done = false) {
+    const row = this.shadowRoot.getElementById(id);
+    if (!row) return;
+    const bubble = row.querySelector(".bubble");
+    if (bubble) {
+      bubble.textContent = text;
+      if (done) bubble.classList.remove("streaming-bubble"); // ✅ removes cursor
+    }
+    const messages = this.shadowRoot.getElementById("messages");
+    messages.scrollTop = messages.scrollHeight;
+  }
 
   isWithinBusinessHours() {
     if (!this.openTime && !this.closeTime && !this.weekendClosed) return true;
@@ -676,6 +749,15 @@ class ChatWidget extends HTMLElement {
         }
         #launcher:hover { transform: translateY(-2px); }
         #launcher:active { transform: scale(0.96); }
+
+      .streaming-bubble::after {
+  content: "▋";
+  display: inline-block;
+  animation: blink 0.8s infinite;
+  margin-left: 2px;
+  color: var(--text-muted);
+}
+@keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0; } }
 
         #widget {
           width: 420px; height: min(560px, calc(100vh - 40px));
