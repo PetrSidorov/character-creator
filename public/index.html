@@ -2,15 +2,8 @@
 <html lang="en">
   <head>
     <meta charset="utf-8" />
-    <link
-      rel="icon"
-      type="image/png"
-      href="%PUBLIC_URL%/favicon.png"
-    />
-    <meta
-      name="viewport"
-      content="width=device-width, initial-scale=1"
-    />
+    <link rel="icon" type="image/png" href="%PUBLIC_URL%/favicon.png" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="theme-color" content="#000000" />
     <title>Character Creator — CSS for JavaScript Developers</title>
     <link rel="preconnect" href="https://fonts.gstatic.com" />
@@ -18,11 +11,29 @@
       href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600&display=swap"
       rel="stylesheet"
     />
+ <script src="./chat-widget.js"></script>
+    
   </head>
   <body>
-    <noscript
-      >You need to enable JavaScript to run this app.</noscript
-    >
+    <noscript>You need to enable JavaScript to run this app.</noscript>
     <div id="root"></div>
+ <chat-widget
+   api-url="http://localhost:3000/api/customer-trpc"
+  api-key="sk_mUGQjvPhKgfohVrJmSVWBFoITPBVxLatlDHFABvCRKzqnfkeHzyLiqvHXjVUfbXz"
+   primary-color="#7c6af7"
+   welcome-message="Hi! How can I help?"
+  title="Support Chat"
+   position="bottom-right"
+   force-open="true"
+   language="en"
+   logo-url="https://example.com/logo.png"
+   theme="dark"
+   auto-open-delay-ms="3000"
+   prechat-collect-name="true"
+   prechat-collect-email="true"
+      show-faq-suggestions="What is your return policy?,How do I reset my password?,Contact support"
+   
+ ></chat-widget>
   </body>
 </html>
+
