@@ -89,15 +89,13 @@ class ChatWidget extends HTMLElement {
         : { email, password };
 
       const result = await this.trpc(path, input, "mutation");
-      console.log("[auth] result", result); // 👈
+      // console.log("[auth] result", result);
 
-      // this._customerToken = result.token;
       this._customerToken = result.json?.token ?? result.token;
       this._customer = result.json?.user ?? result.user;
 
-      this.saveAuth(this._customerToken, this._customer); // ✅ add this
+      this.saveAuth(this._customerToken, this._customer);
 
-      // Hide auth, show chat
       sr.getElementById("auth-screen").classList.remove("visible");
       sr.getElementById("chat-main-area").style.display = "flex";
       await this.initChat();
@@ -310,6 +308,24 @@ class ChatWidget extends HTMLElement {
       this.addMessage(this.welcomeMessage, "ai");
     } else {
       await this.fetchWelcome();
+    }
+  }
+
+  async toggleAi() {
+    try {
+      const isAiEnabled = await this.trpc(
+        "chat.toggleAi",
+        { chatId: this.chatId },
+        "mutation"
+      );
+
+      this.isAiEnabled = isAiEnabled;
+
+      this.shadowRoot
+        .getElementById("ai-toggle")
+        .classList.toggle("ai-enabled", isAiEnabled);
+    } catch (err) {
+      console.error("[ChatWidget] toggle AI failed", err);
     }
   }
 
@@ -860,7 +876,11 @@ class ChatWidget extends HTMLElement {
         #prechat-submit:hover { opacity: 0.88; }
 
         #chat-main-area { flex: 1; display: flex; flex-direction: column; min-height: 0; }
+        .ai-enabled {
+          background: #22c55e; 
+        }
 
+      .ai-toggle { background: var(--text-muted); }
         #empty {
           flex: 1; display: flex; flex-direction: column;
           align-items: center; justify-content: center;
@@ -1058,6 +1078,7 @@ class ChatWidget extends HTMLElement {
     </div>
 
     <div id="input-area">
+      <button id="ai-toggle" class="ai-enabled">Ai</button>
       <div id="input-row">
         <textarea id="input" rows="1" placeholder="Send a message…"></textarea>
         <button id="send-btn" disabled>
@@ -1078,7 +1099,7 @@ class ChatWidget extends HTMLElement {
 
   bindEvents() {
     const sr = this.shadowRoot;
-
+    sr.getElementById("ai-toggle").addEventListener("click", () => this.toggleAi());
     sr.getElementById("launcher").addEventListener("click", () => this.toggleWidget());
     sr.getElementById("close-btn").addEventListener("click", () => this.closeWidget());
     sr.getElementById("minimize-btn").addEventListener("click", () => this.closeWidget());
@@ -1184,6 +1205,10 @@ class ChatWidget extends HTMLElement {
   closeWidget() {
     this.shadowRoot.getElementById("widget").classList.remove("open");
     this.isWidgetOpen = false;
+  }
+
+  toggleAi() {
+    this.shadowRoot.getElementById("ai-toggle").classList.toggle("ai-enabled")
   }
 
   // ─── Chat list render ─────────────────────────────────────────────────────
