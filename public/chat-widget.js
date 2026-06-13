@@ -153,6 +153,7 @@ class ChatWidget extends HTMLElement {
     this.chatId = null;
     this.activeChatId = null;
     this.messages = [];
+    this.chats = []
     this.showAuthScreen("login");
   }
   showAuthScreen(mode = "login") {
@@ -278,7 +279,7 @@ class ChatWidget extends HTMLElement {
       if (savedChatId) {
         await this.loadExistingChat(savedChatId);
       } else {
-        await this.createNewChat();
+        // await this.createNewChat();
       }
     } catch (err) {
       console.error("[ChatWidget] init failed", err);
@@ -292,23 +293,29 @@ class ChatWidget extends HTMLElement {
     }
   }
 
-  async createNewChat() {
-    const chat = await this.trpc("chat.create", {
-      language: this.language,
-      timezone: this.timezone,
-      title: "Support Chat",
-    }, "mutation");
+  async createNewChat(title = "Support Chat") {
+    const toast = this.shadowRoot.getElementById("creating-toast");
+    toast?.classList.add("visible");
 
-    this.chatId = chat.id;
-    this.activeChatId = chat.id;
-    this.saveSession(chat.id);
-    this.messages = [];
+    try {
+      const chat = await this.trpc("chat.create", {
+        language: this.language,
+        timezone: this.timezone,
+        title,
+      }, "mutation");
 
-    // Fetch welcome message from AI
-    if (this.welcomeMessage) {
-      this.addMessage(this.welcomeMessage, "ai");
-    } else {
-      await this.fetchWelcome();
+      this.chatId = chat.id;
+      this.activeChatId = chat.id;
+      this.saveSession(chat.id);
+      this.messages = [];
+
+      if (this.welcomeMessage) {
+        this.addMessage(this.welcomeMessage, "ai");
+      } else {
+        await this.fetchWelcome();
+      }
+    } finally {
+      toast?.classList.remove("visible");
     }
   }
 
@@ -453,14 +460,17 @@ class ChatWidget extends HTMLElement {
 
   async startNewChat() {
     if (this.isPending) return;
-    this.isPending = true;
 
+    const title = await this.promptChatTitle();
+    if (title === null) return; // user cancelled
+
+    this.isPending = true;
     const messages = this.shadowRoot.getElementById("messages");
     messages.innerHTML = "";
     this.messages = [];
 
     try {
-      await this.createNewChat();
+      await this.createNewChat(title);
       await this.fetchChatList();
     } catch (err) {
       console.error("[ChatWidget] new chat failed", err);
@@ -519,6 +529,44 @@ class ChatWidget extends HTMLElement {
         typing.classList.remove("visible");
       }
     }
+  }
+
+  promptChatTitle() {
+    return new Promise((resolve) => {
+      const sr = this.shadowRoot;
+      const overlay = sr.getElementById("title-modal-overlay");
+      const input = sr.getElementById("chat-title-input");
+      const confirm = sr.getElementById("title-modal-confirm");
+      const cancel = sr.getElementById("title-modal-cancel");
+
+      input.value = "";
+      overlay.classList.add("visible");
+      setTimeout(() => input.focus(), 180);
+
+      const finish = (value) => {
+        overlay.classList.remove("visible");
+        confirm.replaceWith(confirm.cloneNode(true));  // remove old listeners
+        cancel.replaceWith(cancel.cloneNode(true));
+        resolve(value);
+      };
+
+      sr.getElementById("title-modal-confirm").addEventListener("click", () => {
+        finish(input.value.trim() || "New chat");
+      });
+
+      sr.getElementById("title-modal-cancel").addEventListener("click", () => {
+        finish(null);
+      });
+
+      input.addEventListener("keydown", function handler(e) {
+        if (e.key === "Enter") { input.removeEventListener("keydown", handler); finish(input.value.trim() || "New chat"); }
+        if (e.key === "Escape") { input.removeEventListener("keydown", handler); finish(null); }
+      });
+
+      overlay.addEventListener("click", function handler(e) {
+        if (e.target === overlay) { overlay.removeEventListener("click", handler); finish(null); }
+      });
+    });
   }
 
   // ─── Business hours ────────────────────────────────────────────────────────
@@ -768,6 +816,126 @@ class ChatWidget extends HTMLElement {
           position: fixed; right: 20px; bottom: 20px; z-index: 999999; font-family: var(--font);
         }
 
+      #title-modal-overlay {
+  position: absolute; inset: 0; z-index: 20;
+  background: rgba(0,0,0,0.4); backdrop-filter: blur(2px);
+  display: flex; align-items: center; justify-content: center;
+  opacity: 0; pointer-events: none;
+  transition: opacity 0.18s ease;
+}
+#title-modal-overlay.visible {
+  opacity: 1; pointer-events: auto;
+}
+#title-modal {
+  background: var(--bg-raised); border: 1px solid var(--border-strong);
+  border-radius: 16px; padding: 20px; width: 280px;
+  box-shadow: 0 20px 60px rgba(0,0,0,0.4);
+  transform: translateY(8px) scale(0.97);
+  transition: transform 0.18s ease;
+  display: flex; flex-direction: column; gap: 14px;
+}
+#title-modal-overlay.visible #title-modal {
+  transform: translateY(0) scale(1);
+}
+#title-modal h4 {
+  font-size: 14px; font-weight: 600; color: var(--text); margin: 0;
+}
+#title-modal p {
+  font-size: 12px; color: var(--text-muted); margin: -8px 0 0; line-height: 1.5;
+}
+#chat-title-input {
+  background: var(--bg); border: 1px solid var(--border-strong);
+  border-radius: 10px; padding: 10px 12px;
+  color: var(--text); font-family: var(--font); font-size: 14px;
+  outline: none; transition: border-color 0.15s; width: 100%;
+}
+#chat-title-input:focus { border-color: var(--accent); }
+#chat-title-input::placeholder { color: var(--text-subtle); }
+#title-modal-actions {
+  display: flex; gap: 8px;
+}
+#title-modal-cancel {
+  flex: 1; padding: 9px; border-radius: 10px;
+  border: 1px solid var(--border-strong); background: transparent;
+  color: var(--text-muted); font-family: var(--font); font-size: 13px;
+  cursor: pointer; transition: background 0.12s, color 0.12s;
+}
+#title-modal-cancel:hover { background: var(--bg-hover); color: var(--text); }
+#title-modal-confirm {
+  flex: 1; padding: 9px; border-radius: 10px;
+  border: none; background: var(--accent); color: white;
+  font-family: var(--font); font-size: 13px; font-weight: 500;
+  cursor: pointer; transition: opacity 0.12s;
+}
+#title-modal-confirm:hover { opacity: 0.85; }
+
+      #creating-toast {
+  position: absolute; bottom: 80px; left: 50%; transform: translateX(-50%) translateY(8px);
+  background: var(--bg-raised); border: 1px solid var(--border-strong);
+  border-radius: 12px; padding: 10px 14px;
+  display: flex; align-items: center; gap: 10px;
+  font-size: 13px; color: var(--text-muted);
+  box-shadow: 0 8px 24px rgba(0,0,0,0.2);
+  opacity: 0; pointer-events: none;
+  transition: opacity 0.2s ease, transform 0.2s ease;
+  white-space: nowrap; z-index: 5;
+}
+#creating-toast.visible {
+  opacity: 1; transform: translateX(-50%) translateY(0);
+}
+#creating-toast .toast-spinner {
+  width: 14px; height: 14px; border-radius: 50%; flex-shrink: 0;
+  border: 2px solid var(--border-strong);
+  border-top-color: var(--accent);
+  animation: spin 0.7s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+#settings-dropdown {
+  position: absolute; top: calc(var(--header-h) + 6px); right: 10px;
+  width: 220px; background: var(--bg-raised);
+  border: 1px solid var(--border-strong); border-radius: 14px;
+  box-shadow: 0 12px 40px rgba(0,0,0,0.3), 0 2px 8px rgba(0,0,0,0.15);
+  padding: 6px; z-index: 10;
+  opacity: 0; pointer-events: none; transform: translateY(-6px) scale(0.97);
+  transform-origin: top right;
+  transition: opacity 0.15s ease, transform 0.15s ease;
+}
+#settings-dropdown.open {
+  opacity: 1; pointer-events: auto; transform: translateY(0) scale(1);
+}
+#settings-user {
+  display: flex; align-items: center; gap: 10px;
+  padding: 10px 10px 12px;
+}
+#settings-avatar {
+  width: 32px; height: 32px; border-radius: 50%; flex-shrink: 0;
+  background: var(--accent-dim); border: 1px solid var(--accent-glow);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 13px; font-weight: 600; color: var(--accent);
+}
+#settings-user-info { min-width: 0; }
+#settings-name {
+  font-size: 13px; font-weight: 500; color: var(--text);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+#settings-email {
+  font-size: 11px; color: var(--text-muted); margin-top: 1px;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  font-family: var(--font-mono);
+}
+.settings-divider {
+  height: 1px; background: var(--border); margin: 2px 0;
+}
+#settings-signout {
+  width: 100%; display: flex; align-items: center; gap: 9px;
+  padding: 9px 10px; border-radius: 8px; border: none;
+  background: transparent; color: #f87171;
+  font-family: var(--font); font-size: 13px; font-weight: 500;
+  cursor: pointer; text-align: left;
+  transition: background 0.12s;
+}
+#settings-signout:hover { background: rgba(248,113,113,0.08); }
         #launcher {
           width: 64px; height: 64px; border: none; border-radius: 999px;
           background: var(--accent); color: white; cursor: pointer;
@@ -1034,9 +1202,30 @@ class ChatWidget extends HTMLElement {
       <button class="topbar-btn" id="close-btn" title="Close">
         <svg width="15" height="15" viewBox="0 0 24 24" fill="none"><path d="M18 6L6 18M6 6l12 12" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
       </button>
+      <button class="topbar-btn" id="settings-btn" title="Settings">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="3"/>
+          <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+        </svg>
+      </button>
     </div>
   </div>
-
+<div id="settings-dropdown">
+  <div id="settings-user">
+    <div id="settings-avatar"></div>
+    <div id="settings-user-info">
+      <div id="settings-name">—</div>
+      <div id="settings-email">—</div>
+    </div>
+  </div>
+  <div class="settings-divider"></div>
+  <button id="settings-signout">
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/>
+    </svg>
+    Sign out
+  </button>
+</div>
   <!-- ✅ auth screen — separate from prechat, hidden by default -->
   <div id="auth-screen">
     <div id="auth-inner">
@@ -1101,7 +1290,23 @@ class ChatWidget extends HTMLElement {
       </div>
     </div>
   </div>
+            <div id="creating-toast">
+  <div class="toast-spinner"></div>
+  <span>Starting a new conversation…</span>
+</div>
+            <div id="title-modal-overlay">
+  <div id="title-modal">
+    <h4>New conversation</h4>
+    <p>Give this chat a title so you can find it later.</p>
+    <input id="chat-title-input" type="text" placeholder="e.g. Billing issue, Setup help…" maxlength="60" />
+    <div id="title-modal-actions">
+      <button id="title-modal-cancel">Cancel</button>
+      <button id="title-modal-confirm">Start chat →</button>
+    </div>
+  </div>
+</div>
 </main>
+
         </div>
       </div>
     `;
@@ -1156,6 +1361,32 @@ class ChatWidget extends HTMLElement {
         input.dispatchEvent(new Event("input"));
         this.sendMessage();
       }
+    });
+
+    const settingsBtn = sr.getElementById("settings-btn");
+    const settingsDropdown = sr.getElementById("settings-dropdown");
+
+    settingsBtn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      const isOpen = settingsDropdown.classList.toggle("open");
+
+      // Populate user info when opening
+      if (isOpen && this._customer) {
+        const name = this._customer.name || "User";
+        sr.getElementById("settings-name").textContent = name;
+        sr.getElementById("settings-email").textContent = this._customer.email || "";
+        sr.getElementById("settings-avatar").textContent = name.charAt(0).toUpperCase();
+      }
+    });
+
+    // Close when clicking outside
+    document.addEventListener("click", () => {
+      settingsDropdown.classList.remove("open");
+    });
+
+    sr.getElementById("settings-signout").addEventListener("click", () => {
+      settingsDropdown.classList.remove("open");
+      this.logout();
     });
 
     document.addEventListener("keydown", e => {
