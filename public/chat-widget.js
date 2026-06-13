@@ -43,6 +43,7 @@ class ChatWidget extends HTMLElement {
     this.prechatSubmitted = false;
     this.prechatData = { name: "", email: "" };
     this.autoOpenTimer = null;
+    this.isAiEnabled = true;
 
     // State
     this.chatId = null;          // created on first interaction
@@ -488,24 +489,35 @@ class ChatWidget extends HTMLElement {
     this.isPending = true;
 
     this.addMessage(text, "user");
-    typing.classList.add("visible");
 
-    // Add an empty AI bubble that we'll stream into
-    const aiMsgId = `ai-${Date.now()}`;
-    this.addStreamingMessage(aiMsgId);
 
-    try {
-      await this.streamMessage(text, (fullText, done) => {
-        this.updateStreamingMessage(aiMsgId, fullText, done);
-      });
-      typing.classList.remove("visible");
-    } catch (err) {
-      typing.classList.remove("visible");
-      console.error("[ChatWidget] send failed", err);
-      this.updateStreamingMessage(aiMsgId, "Something went wrong. Please try again.");
-    } finally {
-      this.isPending = false;
-      sendBtn.disabled = !input.value.trim() || !this.isWithinBusinessHours();
+    if (this.isAiEnabled) {
+
+      const aiMsgId = `ai-${Date.now()}`;
+      this.addStreamingMessage(aiMsgId);
+      try {
+        await this.streamMessage(text, (fullText, done) => {
+          this.updateStreamingMessage(aiMsgId, fullText, done);
+        });
+        typing.classList.remove("visible");
+      } catch (err) {
+        typing.classList.remove("visible");
+        console.error("[ChatWidget] send failed", err);
+        this.updateStreamingMessage(aiMsgId, "Something went wrong. Please try again.");
+      }
+    } else {
+
+      try {
+        await this.trpc("message.send", {
+          chatId: this.chatId,
+          content: text,
+          // role: "user",
+        }, "mutation");
+      } catch (err) {
+        console.error("[ChatWidget] message.create failed", err);
+      } finally {
+        typing.classList.remove("visible");
+      }
     }
   }
 
@@ -1208,7 +1220,9 @@ class ChatWidget extends HTMLElement {
   }
 
   toggleAi() {
-    this.shadowRoot.getElementById("ai-toggle").classList.toggle("ai-enabled")
+    this.isAiEnabled = !this.isAiEnabled;
+    this.shadowRoot.getElementById("ai-toggle")
+      .classList.toggle("ai-enabled", this.isAiEnabled);
   }
 
   // ─── Chat list render ─────────────────────────────────────────────────────
