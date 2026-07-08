@@ -43,7 +43,7 @@ class ChatWidget extends HTMLElement {
     this.prechatSubmitted = false;
     this.prechatData = { name: "", email: "" };
     this.autoOpenTimer = null;
-    this.isAiEnabled = true;
+    this.isAiEnabled = false;
 
     // State
     this.chatId = null; // created on first interaction
@@ -164,7 +164,7 @@ class ChatWidget extends HTMLElement {
       );
       console.log("[widget] loadAuth result:", {
         token: this._customerToken,
-        customer: this._customer?.email,
+        customer: this._customer,
       });
     } catch (e) {
       console.error("[widget] loadAuth failed:", e);
@@ -257,6 +257,8 @@ class ChatWidget extends HTMLElement {
     return this.getAttribute("api-url") || "/api/customer-trpc";
   }
 
+  get listenMessagesUrl() {}
+
   get faqSuggestions() {
     const raw = this.getAttribute("show-faq-suggestions");
     if (!raw || raw === "false" || raw === "true") return [];
@@ -282,6 +284,64 @@ class ChatWidget extends HTMLElement {
   }
   get weekendClosed() {
     return this.getAttribute("weekend-closed") === "true";
+  }
+
+  // ─── SSE / live events ──────────────────────────────────────────────────
+
+  connectToEvents() {
+    if (this.eventSource) return;
+
+    const url = new URL(
+      this.apiUrl.replace(/\/customer-trpc.*$/, "/customer-sse"),
+    );
+    if (this.apiKey) url.searchParams.set("apiKey", this.apiKey);
+    if (this.chatId) url.searchParams.set("chatId", this.chatId);
+
+    this.eventSource = new EventSource(url.toString(), {
+      withCredentials: true,
+    });
+
+    this.eventSource.addEventListener("connected", (e) => {
+      console.log("[sse] connected", JSON.parse(e.data));
+    });
+
+    this.eventSource.addEventListener("user_message", (e) => {
+      const data = JSON.parse(e.data);
+      console.log("[sse] user_message ", data);
+      this.addMessage(
+        data.content,
+        data.userId,
+        // data.role === "user" ? "user" : "ai",
+        new Date(data.createdAt),
+      );
+    });
+
+    this.eventSource.addEventListener("ping", (e) => {
+      console.log("[sse] ping", JSON.parse(e.data));
+      this.handleIncomingMessage(JSON.parse(e.data));
+    });
+
+    this.eventSource.onerror = (err) => {
+      console.error("[sse] error", err);
+    };
+  }
+
+  disconnectFromEvents() {
+    this.eventSource?.close();
+    this.eventSource = null;
+  }
+
+  disconnectFromEvents() {
+    if (this.eventSource) {
+      this.eventSource.close();
+      this.eventSource = null;
+    }
+  }
+
+  handleIncomingMessage(payload) {
+    // hook this up to however you push into this.messages / re-render
+    this.messages.push(payload);
+    // this.renderMessages(); // or whatever your UI update method is called
   }
 
   // ─── tRPC client ──────────────────────────────────────────────────────────
@@ -371,11 +431,12 @@ class ChatWidget extends HTMLElement {
       } else {
         // await this.createNewChat();
       }
+      this.connectToEvents();
     } catch (err) {
       console.error("[ChatWidget] init failed", err);
       this.clearSession();
       try {
-        await this.createNewChat();
+        // await this.createNewChat();
       } catch {}
     } finally {
       typing.classList.remove("visible");
@@ -511,13 +572,8 @@ class ChatWidget extends HTMLElement {
       this.activeChatId = chat.id;
       this.messages = [];
 
-      // Render existing messages
       for (const msg of messageList) {
-        this.addMessage(
-          msg.content,
-          msg.role === "user" ? "user" : "ai",
-          new Date(msg.createdAt),
-        );
+        this.addMessage(msg.content, msg.userId, new Date(msg.createdAt));
       }
     } catch {
       // Chat no longer exists, start fresh
@@ -558,11 +614,7 @@ class ChatWidget extends HTMLElement {
 
       messages.innerHTML = "";
       for (const msg of messageList) {
-        this.addMessage(
-          msg.content,
-          msg.role === "user" ? "user" : "ai",
-          new Date(msg.createdAt),
-        );
+        this.addMessage(msg.content, msg.userId, new Date(msg.createdAt));
       }
     } catch (err) {
       console.error("[ChatWidget] switch chat failed", err);
@@ -613,7 +665,7 @@ class ChatWidget extends HTMLElement {
     sendBtn.disabled = true;
     this.isPending = true;
 
-    this.addMessage(text, "user");
+    this.addMessage(text, this._customer.id);
 
     // if (this.isAiEnabled) {
     // WARNING: temporary disabled ai for testing puposes
@@ -1003,6 +1055,7 @@ class ChatWidget extends HTMLElement {
 }
 
 .slider {
+  display: none;
   position: relative;
   width: 100%;
   height: 100%;
@@ -1757,7 +1810,7 @@ class ChatWidget extends HTMLElement {
     }
   }
 
-  addMessage(content, role, date = new Date()) {
+  addMessage(content, userId, date = new Date()) {
     const messages = this.shadowRoot.getElementById("messages");
     const empty = this.shadowRoot.getElementById("empty");
     if (!messages) return;
@@ -1765,7 +1818,9 @@ class ChatWidget extends HTMLElement {
     messages.style.display = "flex";
 
     const row = document.createElement("div");
-    row.className = `msg-row ${role}`;
+    // console.log("userId === this._customer?.id ", userId, this._customer?.id);
+    const isOwn = userId === this._customer?.id;
+    row.className = `msg-row ${isOwn ? "user" : "assistant"}`;
     row.innerHTML = `
       <div>
         <div class="bubble">${this.escapeHtml(content)}</div>
@@ -1775,7 +1830,7 @@ class ChatWidget extends HTMLElement {
     messages.appendChild(row);
     messages.scrollTop = messages.scrollHeight;
     this.messages.push({
-      role: role === "user" ? "user" : "assistant",
+      role: userId === this._customer?.id ? "user" : "assistant",
       content,
     });
   }
