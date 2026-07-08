@@ -369,6 +369,7 @@ class ChatWidget extends HTMLElement {
       if (savedChatId) {
         await this.loadExistingChat(savedChatId);
       } else {
+        // await this.createNewChat();
       }
     } catch (err) {
       console.error("[ChatWidget] init failed", err);
