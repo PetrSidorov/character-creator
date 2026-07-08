@@ -46,25 +46,40 @@ class ChatWidget extends HTMLElement {
     this.isAiEnabled = true;
 
     // State
-    this.chatId = null;          // created on first interaction
-    this.sessionKey = null;      // stored in sessionStorage per domain
+    this.chatId = null; // created on first interaction
+    this.sessionKey = null; // stored in sessionStorage per domain
     this.isInitializing = false;
-    this.chats = [];             // fetched from server
+    this.chats = []; // fetched from server
     this.activeChatId = null;
   }
   // ─── Auth ─────────────────────────────────────────────────────────────────
 
-  get isRegisterMode() { return this._authMode === "register"; }
+  get isRegisterMode() {
+    return this._authMode === "register";
+  }
 
   toggleAuthMode() {
     this._authMode = this.isRegisterMode ? "login" : "register";
     const sr = this.shadowRoot;
-    sr.getElementById("auth-title").textContent = this.isRegisterMode ? "Create account" : "Welcome back";
-    sr.getElementById("auth-subtitle").textContent = this.isRegisterMode ? "Sign up to start chatting." : "Sign in to continue your conversation.";
-    sr.getElementById("auth-name-field").style.display = this.isRegisterMode ? "flex" : "none";
-    sr.getElementById("auth-submit").textContent = this.isRegisterMode ? "Create account →" : "Sign in →";
-    sr.getElementById("auth-switch").textContent = this.isRegisterMode ? "Sign in instead" : "Create one";
-    sr.getElementById("auth-toggle").childNodes[0].textContent = this.isRegisterMode ? "Already have an account? " : "Don't have an account? ";
+    sr.getElementById("auth-title").textContent = this.isRegisterMode
+      ? "Create account"
+      : "Welcome back";
+    sr.getElementById("auth-subtitle").textContent = this.isRegisterMode
+      ? "Sign up to start chatting."
+      : "Sign in to continue your conversation.";
+    sr.getElementById("auth-name-field").style.display = this.isRegisterMode
+      ? "flex"
+      : "none";
+    sr.getElementById("auth-submit").textContent = this.isRegisterMode
+      ? "Create account →"
+      : "Sign in →";
+    sr.getElementById("auth-switch").textContent = this.isRegisterMode
+      ? "Sign in instead"
+      : "Create one";
+    sr.getElementById("auth-toggle").childNodes[0].textContent = this
+      .isRegisterMode
+      ? "Already have an account? "
+      : "Don't have an account? ";
     sr.getElementById("auth-error").textContent = "";
   }
 
@@ -76,12 +91,20 @@ class ChatWidget extends HTMLElement {
     const errorEl = sr.getElementById("auth-error");
     const submitBtn = sr.getElementById("auth-submit");
 
-    if (!email || !password) { errorEl.textContent = "Email and password are required."; return; }
-    if (this.isRegisterMode && !name) { errorEl.textContent = "Name is required."; return; }
+    if (!email || !password) {
+      errorEl.textContent = "Email and password are required.";
+      return;
+    }
+    if (this.isRegisterMode && !name) {
+      errorEl.textContent = "Name is required.";
+      return;
+    }
 
     errorEl.textContent = "";
     submitBtn.disabled = true;
-    submitBtn.textContent = this.isRegisterMode ? "Creating account…" : "Signing in…";
+    submitBtn.textContent = this.isRegisterMode
+      ? "Creating account…"
+      : "Signing in…";
 
     try {
       const path = this.isRegisterMode ? "auth.register" : "auth.login";
@@ -101,28 +124,33 @@ class ChatWidget extends HTMLElement {
       sr.getElementById("chat-main-area").style.display = "flex";
       await this.initChat();
       // Hide auth, show chat
-
-
     } catch (err) {
-      errorEl.textContent = err.message ?? "Something went wrong. Please try again.";
+      errorEl.textContent =
+        err.message ?? "Something went wrong. Please try again.";
     } finally {
       submitBtn.disabled = false;
-      submitBtn.textContent = this.isRegisterMode ? "Create account →" : "Sign in →";
+      submitBtn.textContent = this.isRegisterMode
+        ? "Create account →"
+        : "Sign in →";
     }
   }
   // ─── Auth persistence ─────────────────────────────────────────────────────
 
-  getAuthKey(suffix) { return `cw_${suffix}_${this.apiKey.slice(-8)}`; }
+  getAuthKey(suffix) {
+    return `cw_${suffix}_${this.apiKey.slice(-8)}`;
+  }
 
   saveAuth(token, user) {
     try {
       localStorage.setItem(this.getAuthKey("token"), token);
       localStorage.setItem(this.getAuthKey("user"), JSON.stringify(user));
-      console.log("[widget] saved auth:", { token, user: user?.email, key: this.getAuthKey("token") });
-
+      console.log("[widget] saved auth:", {
+        token,
+        user: user?.email,
+        key: this.getAuthKey("token"),
+      });
     } catch (e) {
       console.error("[widget] saveAuth failed:", e);
-
     }
   }
 
@@ -131,8 +159,13 @@ class ChatWidget extends HTMLElement {
       const key = this.getAuthKey("token");
       console.log("[widget] loading auth from key:", key);
       this._customerToken = localStorage.getItem(key);
-      this._customer = JSON.parse(localStorage.getItem(this.getAuthKey("user")) || "null");
-      console.log("[widget] loadAuth result:", { token: this._customerToken, customer: this._customer?.email });
+      this._customer = JSON.parse(
+        localStorage.getItem(this.getAuthKey("user")) || "null",
+      );
+      console.log("[widget] loadAuth result:", {
+        token: this._customerToken,
+        customer: this._customer?.email,
+      });
     } catch (e) {
       console.error("[widget] loadAuth failed:", e);
     }
@@ -142,7 +175,7 @@ class ChatWidget extends HTMLElement {
     try {
       localStorage.removeItem(this.getAuthKey("token"));
       localStorage.removeItem(this.getAuthKey("user"));
-    } catch { }
+    } catch {}
   }
 
   logout() {
@@ -153,7 +186,7 @@ class ChatWidget extends HTMLElement {
     this.chatId = null;
     this.activeChatId = null;
     this.messages = [];
-    this.chats = []
+    this.chats = [];
     this.showAuthScreen("login");
   }
   showAuthScreen(mode = "login") {
@@ -164,32 +197,73 @@ class ChatWidget extends HTMLElement {
     // Apply correct labels for initial mode
     this.toggleAuthMode();
     this._authMode = mode; // toggleAuthMode flips it, reset
-    sr.getElementById("auth-title").textContent = mode === "register" ? "Create account" : "Welcome back";
-    sr.getElementById("auth-subtitle").textContent = mode === "register" ? "Sign up to start chatting." : "Sign in to continue your conversation.";
-    sr.getElementById("auth-name-field").style.display = mode === "register" ? "flex" : "none";
-    sr.getElementById("auth-submit").textContent = mode === "register" ? "Create account →" : "Sign in →";
+    sr.getElementById("auth-title").textContent =
+      mode === "register" ? "Create account" : "Welcome back";
+    sr.getElementById("auth-subtitle").textContent =
+      mode === "register"
+        ? "Sign up to start chatting."
+        : "Sign in to continue your conversation.";
+    sr.getElementById("auth-name-field").style.display =
+      mode === "register" ? "flex" : "none";
+    sr.getElementById("auth-submit").textContent =
+      mode === "register" ? "Create account →" : "Sign in →";
   }
   // ─── Attribute helpers ────────────────────────────────────────────────────
 
-  get primaryColor() { return this.getAttribute("primary-color") || "#7c6af7"; }
-  get welcomeMessage() { return this.getAttribute("welcome-message") || ""; }
-  get position() { return this.getAttribute("position") || "bottom-right"; }
-  get forceOpen() { return this.getAttribute("force-open") === "true"; }
-  get widgetTitle() { return this.getAttribute("title") || "AI Assistant"; }
-  get language() { return this.getAttribute("language") || navigator.language || "en"; }
-  get timezone() { return this.getAttribute("timezone") || Intl.DateTimeFormat().resolvedOptions().timeZone; }
-  get logoUrl() { return this.getAttribute("logo-url") || ""; }
-  get theme() { return this.getAttribute("theme") || "dark"; }
-  get autoOpenDelayMs() { const v = parseInt(this.getAttribute("auto-open-delay-ms"), 10); return isNaN(v) ? null : v; }
-  get apiKey() { return this.getAttribute("api-key") || ""; }
-  get prechatCollectName() { return this.getAttribute("prechat-collect-name") === "true"; }
-  get prechatCollectEmail() { return this.getAttribute("prechat-collect-email") === "true"; }
-  get apiUrl() { return this.getAttribute("api-url") || "/api/customer-trpc"; }
+  get primaryColor() {
+    return this.getAttribute("primary-color") || "#7c6af7";
+  }
+  get welcomeMessage() {
+    return this.getAttribute("welcome-message") || "";
+  }
+  get position() {
+    return this.getAttribute("position") || "bottom-right";
+  }
+  get forceOpen() {
+    return this.getAttribute("force-open") === "true";
+  }
+  get widgetTitle() {
+    return this.getAttribute("title") || "AI Assistant";
+  }
+  get language() {
+    return this.getAttribute("language") || navigator.language || "en";
+  }
+  get timezone() {
+    return (
+      this.getAttribute("timezone") ||
+      Intl.DateTimeFormat().resolvedOptions().timeZone
+    );
+  }
+  get logoUrl() {
+    return this.getAttribute("logo-url") || "";
+  }
+  get theme() {
+    return this.getAttribute("theme") || "dark";
+  }
+  get autoOpenDelayMs() {
+    const v = parseInt(this.getAttribute("auto-open-delay-ms"), 10);
+    return isNaN(v) ? null : v;
+  }
+  get apiKey() {
+    return this.getAttribute("api-key") || "";
+  }
+  get prechatCollectName() {
+    return this.getAttribute("prechat-collect-name") === "true";
+  }
+  get prechatCollectEmail() {
+    return this.getAttribute("prechat-collect-email") === "true";
+  }
+  get apiUrl() {
+    return this.getAttribute("api-url") || "/api/customer-trpc";
+  }
 
   get faqSuggestions() {
     const raw = this.getAttribute("show-faq-suggestions");
     if (!raw || raw === "false" || raw === "true") return [];
-    return raw.split(",").map(s => s.trim()).filter(Boolean);
+    return raw
+      .split(",")
+      .map((s) => s.trim())
+      .filter(Boolean);
   }
 
   parseTime(attr) {
@@ -200,9 +274,15 @@ class ChatWidget extends HTMLElement {
     return { h, m };
   }
 
-  get openTime() { return this.parseTime("open-time"); }
-  get closeTime() { return this.parseTime("close-time"); }
-  get weekendClosed() { return this.getAttribute("weekend-closed") === "true"; }
+  get openTime() {
+    return this.parseTime("open-time");
+  }
+  get closeTime() {
+    return this.parseTime("close-time");
+  }
+  get weekendClosed() {
+    return this.getAttribute("weekend-closed") === "true";
+  }
 
   // ─── tRPC client ──────────────────────────────────────────────────────────
 
@@ -211,9 +291,11 @@ class ChatWidget extends HTMLElement {
     const headers = {
       "Content-Type": "application/json",
       ...(this.apiKey && { "x-api-key": this.apiKey }),
-      ...(this._customerToken && { "Authorization": `Bearer ${this._customerToken}` }), // ✅
+      ...(this._customerToken && {
+        Authorization: `Bearer ${this._customerToken}`,
+      }),
     };
-    console.log("[trpc] request", { path, method, headers, input }); // 👈 add this
+    console.log("[trpc] request", { path, method, headers, input });
 
     let res;
     if (method === "query") {
@@ -221,14 +303,14 @@ class ChatWidget extends HTMLElement {
       res = await fetch(url.toString(), {
         method: "GET",
         headers,
-        credentials: "include", // ✅ add this
+        credentials: "omit",
       });
     } else {
       res = await fetch(url.toString(), {
         method: "POST",
         headers,
         body: JSON.stringify({ json: input ?? {} }),
-        credentials: "include",
+        credentials: "omit",
       });
     }
 
@@ -249,15 +331,23 @@ class ChatWidget extends HTMLElement {
   }
 
   saveSession(chatId) {
-    try { sessionStorage.setItem(this.getStorageKey(), chatId); } catch { }
+    try {
+      sessionStorage.setItem(this.getStorageKey(), chatId);
+    } catch {}
   }
 
   loadSession() {
-    try { return sessionStorage.getItem(this.getStorageKey()); } catch { return null; }
+    try {
+      return sessionStorage.getItem(this.getStorageKey());
+    } catch {
+      return null;
+    }
   }
 
   clearSession() {
-    try { sessionStorage.removeItem(this.getStorageKey()); } catch { }
+    try {
+      sessionStorage.removeItem(this.getStorageKey());
+    } catch {}
   }
 
   // ─── Chat initialization ──────────────────────────────────────────────────
@@ -279,12 +369,13 @@ class ChatWidget extends HTMLElement {
       if (savedChatId) {
         await this.loadExistingChat(savedChatId);
       } else {
-        // await this.createNewChat();
       }
     } catch (err) {
       console.error("[ChatWidget] init failed", err);
       this.clearSession();
-      try { await this.createNewChat(); } catch { }
+      try {
+        await this.createNewChat();
+      } catch {}
     } finally {
       typing.classList.remove("visible");
       this.isInitializing = false;
@@ -298,11 +389,15 @@ class ChatWidget extends HTMLElement {
     toast?.classList.add("visible");
 
     try {
-      const chat = await this.trpc("chat.create", {
-        language: this.language,
-        timezone: this.timezone,
-        title,
-      }, "mutation");
+      const chat = await this.trpc(
+        "chat.create",
+        {
+          language: this.language,
+          timezone: this.timezone,
+          title,
+        },
+        "mutation",
+      );
 
       this.chatId = chat.id;
       this.activeChatId = chat.id;
@@ -318,30 +413,37 @@ class ChatWidget extends HTMLElement {
       toast?.classList.remove("visible");
     }
   }
-
-  async toggleAi() {
-    try {
-      const isAiEnabled = await this.trpc(
-        "chat.toggleAi",
-        { chatId: this.chatId },
-        "mutation"
-      );
-
-      this.isAiEnabled = isAiEnabled;
-
-      this.shadowRoot
-        .getElementById("ai-toggle")
-        .classList.toggle("ai-enabled", isAiEnabled);
-    } catch (err) {
-      console.error("[ChatWidget] toggle AI failed", err);
-    }
-  }
+  //
+  // async toggleAi() {
+  //
+  //   try {
+  //     const aiEnabled = this.shadowRoot.getElementById("ai-toggle").checked
+  //     console.log("aiEnabled ", aiEnabled)
+  //     //   const isAiEnabled = await this.trpc(
+  //     //     "chat.toggleAi",
+  //     //     { chatId: this.chatId },
+  //     //     "mutation"
+  //     //   );
+  //     //
+  //     //   this.isAiEnabled = isAiEnabled;
+  //     //
+  //     //   this.shadowRoot
+  //     //     .getElementById("ai-toggle")
+  //     //     .classList.toggle("ai-enabled", isAiEnabled);
+  //   } catch (err) {
+  //     console.error("[ChatWidget] toggle AI failed", err);
+  //   }
+  // }
 
   async fetchWelcome() {
-    const res = await this.trpc("aiMessage.send", {
-      chatId: this.chatId,
-      content: "__init__",
-    }, "mutation");
+    const res = await this.trpc(
+      "aiMessage.send",
+      {
+        chatId: this.chatId,
+        content: "__init__",
+      },
+      "mutation",
+    );
 
     if (res?.content) {
       this.addMessage(res.content, "ai");
@@ -360,13 +462,15 @@ class ChatWidget extends HTMLElement {
       headers: {
         "Content-Type": "application/json",
         ...(this.apiKey && { "x-api-key": this.apiKey }),
-        ...(this._customerToken && { "Authorization": `Bearer ${this._customerToken}` }),
+        ...(this._customerToken && {
+          Authorization: `Bearer ${this._customerToken}`,
+        }),
       },
       credentials: "include",
       body: JSON.stringify({
         chatId: this.chatId,
         content,
-        messages: this.messages.map(m => ({
+        messages: this.messages.map((m) => ({
           role: m.type === "user" ? "user" : "assistant",
           content: m.content,
         })),
@@ -408,7 +512,11 @@ class ChatWidget extends HTMLElement {
 
       // Render existing messages
       for (const msg of messageList) {
-        this.addMessage(msg.content, msg.role === "user" ? "user" : "ai", new Date(msg.createdAt));
+        this.addMessage(
+          msg.content,
+          msg.role === "user" ? "user" : "ai",
+          new Date(msg.createdAt),
+        );
       }
     } catch {
       // Chat no longer exists, start fresh
@@ -420,10 +528,10 @@ class ChatWidget extends HTMLElement {
   async fetchChatList() {
     try {
       const chats = await this.trpc("chat.list", {});
-      console.log('loaded chats ', chats)
+      console.log("loaded chats ", chats);
       this.chats = chats ?? [];
       this.renderChatList();
-    } catch { }
+    } catch {}
   }
 
   async switchChat(chatId) {
@@ -437,17 +545,23 @@ class ChatWidget extends HTMLElement {
     this.shadowRoot.getElementById("empty").style.display = "none";
 
     try {
-      const messageList = await this.trpc("message.list", { chatId, limit: 50 });
+      const messageList = await this.trpc("message.list", {
+        chatId,
+        limit: 50,
+      });
 
       this.chatId = chatId;
       this.activeChatId = chatId;
       this.saveSession(chatId);
       this.messages = [];
 
-      // Clear and re-render
       messages.innerHTML = "";
       for (const msg of messageList) {
-        this.addMessage(msg.content, msg.role === "user" ? "user" : "ai", new Date(msg.createdAt));
+        this.addMessage(
+          msg.content,
+          msg.role === "user" ? "user" : "ai",
+          new Date(msg.createdAt),
+        );
       }
     } catch (err) {
       console.error("[ChatWidget] switch chat failed", err);
@@ -500,9 +614,9 @@ class ChatWidget extends HTMLElement {
 
     this.addMessage(text, "user");
 
-
-    if (this.isAiEnabled) {
-
+    // if (this.isAiEnabled) {
+    // WARNING: temporary disabled ai for testing puposes
+    if (false) {
       const aiMsgId = `ai-${Date.now()}`;
       this.addStreamingMessage(aiMsgId);
       try {
@@ -513,16 +627,22 @@ class ChatWidget extends HTMLElement {
       } catch (err) {
         typing.classList.remove("visible");
         console.error("[ChatWidget] send failed", err);
-        this.updateStreamingMessage(aiMsgId, "Something went wrong. Please try again.");
+        this.updateStreamingMessage(
+          aiMsgId,
+          "Something went wrong. Please try again.",
+        );
       }
     } else {
-
       try {
-        await this.trpc("message.send", {
-          chatId: this.chatId,
-          content: text,
-          // role: "user",
-        }, "mutation");
+        await this.trpc(
+          "message.send",
+          {
+            chatId: this.chatId,
+            content: text,
+            // role: "user",
+          },
+          "mutation",
+        );
       } catch (err) {
         console.error("[ChatWidget] message.create failed", err);
       } finally {
@@ -545,7 +665,7 @@ class ChatWidget extends HTMLElement {
 
       const finish = (value) => {
         overlay.classList.remove("visible");
-        confirm.replaceWith(confirm.cloneNode(true));  // remove old listeners
+        confirm.replaceWith(confirm.cloneNode(true)); // remove old listeners
         cancel.replaceWith(cancel.cloneNode(true));
         resolve(value);
       };
@@ -559,12 +679,21 @@ class ChatWidget extends HTMLElement {
       });
 
       input.addEventListener("keydown", function handler(e) {
-        if (e.key === "Enter") { input.removeEventListener("keydown", handler); finish(input.value.trim() || "New chat"); }
-        if (e.key === "Escape") { input.removeEventListener("keydown", handler); finish(null); }
+        if (e.key === "Enter") {
+          input.removeEventListener("keydown", handler);
+          finish(input.value.trim() || "New chat");
+        }
+        if (e.key === "Escape") {
+          input.removeEventListener("keydown", handler);
+          finish(null);
+        }
       });
 
       overlay.addEventListener("click", function handler(e) {
-        if (e.target === overlay) { overlay.removeEventListener("click", handler); finish(null); }
+        if (e.target === overlay) {
+          overlay.removeEventListener("click", handler);
+          finish(null);
+        }
       });
     });
   }
@@ -598,7 +727,9 @@ class ChatWidget extends HTMLElement {
 
   isWithinBusinessHours() {
     if (!this.openTime && !this.closeTime && !this.weekendClosed) return true;
-    const now = new Date(new Date().toLocaleString("en-US", { timeZone: this.timezone }));
+    const now = new Date(
+      new Date().toLocaleString("en-US", { timeZone: this.timezone }),
+    );
     const day = now.getDay();
     if (this.weekendClosed && (day === 0 || day === 6)) return false;
     if (this.openTime && this.closeTime) {
@@ -612,7 +743,11 @@ class ChatWidget extends HTMLElement {
 
   formatBusinessHours() {
     if (!this.openTime || !this.closeTime) return "";
-    const fmt = t => { const h = t.h % 12 || 12; const m = String(t.m).padStart(2, "0"); return `${h}:${m} ${t.h < 12 ? "AM" : "PM"}`; };
+    const fmt = (t) => {
+      const h = t.h % 12 || 12;
+      const m = String(t.m).padStart(2, "0");
+      return `${h}:${m} ${t.h < 12 ? "AM" : "PM"}`;
+    };
     return `${this.weekendClosed ? "Mon–Fri" : "Daily"}, ${fmt(this.openTime)} – ${fmt(this.closeTime)}`;
   }
 
@@ -627,9 +762,16 @@ class ChatWidget extends HTMLElement {
 
   formatTime(date) {
     try {
-      return date.toLocaleTimeString(this.language, { hour: "2-digit", minute: "2-digit", timeZone: this.timezone });
+      return date.toLocaleTimeString(this.language, {
+        hour: "2-digit",
+        minute: "2-digit",
+        timeZone: this.timezone,
+      });
     } catch {
-      return date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+      return date.toLocaleTimeString([], {
+        hour: "2-digit",
+        minute: "2-digit",
+      });
     }
   }
 
@@ -685,12 +827,16 @@ class ChatWidget extends HTMLElement {
         --accent-dim: rgba(${rgb}, 0.15);
         --accent-glow: rgba(${rgb}, 0.25);
         --user-bubble: ${isLight ? `rgba(${rgb}, 0.12)` : `color-mix(in srgb, ${this.primaryColor} 12%, #0a0a0b)`};
-        ${isLight ? `
+        ${
+          isLight
+            ? `
           --bg: #ffffff; --bg-raised: #f5f5f7; --bg-hover: #ebebef;
           --border: rgba(0,0,0,0.08); --border-strong: rgba(0,0,0,0.14);
           --text: #111113; --text-muted: #6b6b78; --text-subtle: #b0b0bc;
           --ai-bubble: #f0f0f5;
-        ` : ""}
+        `
+            : ""
+        }
         ${this.position === "bottom-left" ? "right: auto !important; left: 20px !important;" : "left: auto !important; right: 20px !important;"}
       }
       #widget { transform-origin: ${this.position === "bottom-left" ? "bottom left" : "bottom right"}; }
@@ -708,7 +854,8 @@ class ChatWidget extends HTMLElement {
 
     const emptyTitle = this.shadowRoot.getElementById("empty-title");
     const emptySubtitle = this.shadowRoot.getElementById("empty-subtitle");
-    if (emptyTitle) emptyTitle.textContent = this.welcomeMessage || this.widgetTitle;
+    if (emptyTitle)
+      emptyTitle.textContent = this.welcomeMessage || this.widgetTitle;
     if (emptySubtitle) {
       emptySubtitle.textContent = this.isWithinBusinessHours()
         ? "Send a message to get started."
@@ -717,8 +864,14 @@ class ChatWidget extends HTMLElement {
 
     const logoEl = this.shadowRoot.getElementById("topbar-logo");
     const emptyLogo = this.shadowRoot.getElementById("empty-logo");
-    if (logoEl) { logoEl.src = this.logoUrl; logoEl.style.display = this.logoUrl ? "block" : "none"; }
-    if (emptyLogo) { emptyLogo.src = this.logoUrl; emptyLogo.style.display = this.logoUrl ? "block" : "none"; }
+    if (logoEl) {
+      logoEl.src = this.logoUrl;
+      logoEl.style.display = this.logoUrl ? "block" : "none";
+    }
+    if (emptyLogo) {
+      emptyLogo.src = this.logoUrl;
+      emptyLogo.style.display = this.logoUrl ? "block" : "none";
+    }
 
     const badge = this.shadowRoot.getElementById("status-badge");
     if (badge) {
@@ -743,7 +896,10 @@ class ChatWidget extends HTMLElement {
   // ─── Prechat ──────────────────────────────────────────────────────────────
 
   needsPrechat() {
-    return (this.prechatCollectName || this.prechatCollectEmail) && !this.prechatSubmitted;
+    return (
+      (this.prechatCollectName || this.prechatCollectEmail) &&
+      !this.prechatSubmitted
+    );
   }
 
   showPrechatIfNeeded() {
@@ -762,10 +918,18 @@ class ChatWidget extends HTMLElement {
   submitPrechat() {
     const nameInput = this.shadowRoot.getElementById("prechat-name");
     const emailInput = this.shadowRoot.getElementById("prechat-email");
-    if (this.prechatCollectName && nameInput && !nameInput.value.trim()) { nameInput.focus(); nameInput.style.borderColor = "var(--accent)"; return; }
+    if (this.prechatCollectName && nameInput && !nameInput.value.trim()) {
+      nameInput.focus();
+      nameInput.style.borderColor = "var(--accent)";
+      return;
+    }
     if (this.prechatCollectEmail && emailInput) {
       const email = emailInput.value.trim();
-      if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { emailInput.focus(); emailInput.style.borderColor = "var(--accent)"; return; }
+      if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+        emailInput.focus();
+        emailInput.style.borderColor = "var(--accent)";
+        return;
+      }
     }
     if (nameInput) this.prechatData.name = nameInput.value.trim();
     if (emailInput) this.prechatData.email = emailInput.value.trim();
@@ -780,9 +944,17 @@ class ChatWidget extends HTMLElement {
     const container = this.shadowRoot.getElementById("faq-chips");
     if (!container) return;
     const faqs = this.faqSuggestions;
-    if (!faqs.length) { container.style.display = "none"; return; }
+    if (!faqs.length) {
+      container.style.display = "none";
+      return;
+    }
     container.style.display = "flex";
-    container.innerHTML = faqs.map(q => `<button class="faq-chip" data-question="${this.escapeHtml(q)}">${this.escapeHtml(q)}</button>`).join("");
+    container.innerHTML = faqs
+      .map(
+        (q) =>
+          `<button class="faq-chip" data-question="${this.escapeHtml(q)}">${this.escapeHtml(q)}</button>`,
+      )
+      .join("");
   }
 
   // ─── Render ───────────────────────────────────────────────────────────────
@@ -815,7 +987,61 @@ class ChatWidget extends HTMLElement {
           --font-mono: 'Geist Mono', monospace;
           position: fixed; right: 20px; bottom: 20px; z-index: 999999; font-family: var(--font);
         }
+.switch {
+  position: relative;
+  display: inline-flex;
+  width: 44px;
+  height: 24px;
+  cursor: pointer;
+}
 
+.switch input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.slider {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  border-radius: 9999px;
+  background: hsl(240 5.9% 90%);
+  transition: background-color 0.15s ease;
+}
+
+.slider::after {
+  content: "";
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 20px;
+  height: 20px;
+  border-radius: 9999px;
+  background: white;
+  box-shadow:
+    0 1px 2px rgba(0, 0, 0, 0.12),
+    0 1px 3px rgba(0, 0, 0, 0.08);
+  transition: transform 0.15s ease;
+}
+
+.switch input:checked + .slider {
+  background: hsl(221.2 83.2% 53.3%);
+}
+
+.switch input:checked + .slider::after {
+  transform: translateX(20px);
+}
+
+.switch input:focus-visible + .slider {
+  outline: 2px solid hsl(221.2 83.2% 53.3%);
+  outline-offset: 2px;
+}
+
+.switch input:disabled + .slider {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
       #title-modal-overlay {
   position: absolute; inset: 0; z-index: 20;
   background: rgba(0,0,0,0.4); backdrop-filter: blur(2px);
@@ -1279,7 +1505,11 @@ class ChatWidget extends HTMLElement {
     </div>
 
     <div id="input-area">
-      <button id="ai-toggle" class="ai-enabled">Ai</button>
+              <label class="switch">
+  <input id="ai-toggle" type="checkbox" />
+  <span class="slider"></span>
+</label>
+      <!-- <button id="ai-toggle" class="ai-enabled">Ai</button> -->
       <div id="input-row">
         <textarea id="input" rows="1" placeholder="Send a message…"></textarea>
         <button id="send-btn" disabled>
@@ -1316,10 +1546,19 @@ class ChatWidget extends HTMLElement {
 
   bindEvents() {
     const sr = this.shadowRoot;
-    sr.getElementById("ai-toggle").addEventListener("click", () => this.toggleAi());
-    sr.getElementById("launcher").addEventListener("click", () => this.toggleWidget());
-    sr.getElementById("close-btn").addEventListener("click", () => this.closeWidget());
-    sr.getElementById("minimize-btn").addEventListener("click", () => this.closeWidget());
+    //sr.getElementById("ai-toggle").addEventListener("change", () => this.toggleAi());
+    sr.getElementById("ai-toggle").addEventListener("change", () =>
+      this.toggleAi(),
+    );
+    sr.getElementById("launcher").addEventListener("click", () =>
+      this.toggleWidget(),
+    );
+    sr.getElementById("close-btn").addEventListener("click", () =>
+      this.closeWidget(),
+    );
+    sr.getElementById("minimize-btn").addEventListener("click", () =>
+      this.closeWidget(),
+    );
 
     const input = sr.getElementById("input");
     const sendBtn = sr.getElementById("send-btn");
@@ -1327,11 +1566,15 @@ class ChatWidget extends HTMLElement {
     input.addEventListener("input", () => {
       input.style.height = "auto";
       input.style.height = Math.min(input.scrollHeight, 120) + "px";
-      sendBtn.disabled = !input.value.trim() || this.isPending || !this.isWithinBusinessHours();
+      sendBtn.disabled =
+        !input.value.trim() || this.isPending || !this.isWithinBusinessHours();
     });
 
-    input.addEventListener("keydown", e => {
-      if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); this.sendMessage(); }
+    input.addEventListener("keydown", (e) => {
+      if (e.key === "Enter" && !e.shiftKey) {
+        e.preventDefault();
+        this.sendMessage();
+      }
     });
 
     sendBtn.addEventListener("click", () => this.sendMessage());
@@ -1339,20 +1582,24 @@ class ChatWidget extends HTMLElement {
     const prechatSubmit = sr.getElementById("prechat-submit");
     if (prechatSubmit) {
       prechatSubmit.addEventListener("click", () => this.submitPrechat());
-      sr.querySelectorAll(".prechat-field input").forEach(el => {
-        el.addEventListener("keydown", e => { if (e.key === "Enter") this.submitPrechat(); });
+      sr.querySelectorAll(".prechat-field input").forEach((el) => {
+        el.addEventListener("keydown", (e) => {
+          if (e.key === "Enter") this.submitPrechat();
+        });
       });
     }
 
-    sr.getElementById("new-chat-btn").addEventListener("click", () => this.startNewChat());
+    sr.getElementById("new-chat-btn").addEventListener("click", () =>
+      this.startNewChat(),
+    );
 
-    sr.getElementById("chat-list").addEventListener("click", e => {
+    sr.getElementById("chat-list").addEventListener("click", (e) => {
       const item = e.target.closest(".chat-item");
       if (!item) return;
       this.switchChat(item.dataset.id);
     });
 
-    sr.getElementById("empty").addEventListener("click", e => {
+    sr.getElementById("empty").addEventListener("click", (e) => {
       const chip = e.target.closest(".faq-chip");
       if (!chip || this.needsPrechat()) return;
       const question = chip.dataset.question;
@@ -1374,8 +1621,11 @@ class ChatWidget extends HTMLElement {
       if (isOpen && this._customer) {
         const name = this._customer.name || "User";
         sr.getElementById("settings-name").textContent = name;
-        sr.getElementById("settings-email").textContent = this._customer.email || "";
-        sr.getElementById("settings-avatar").textContent = name.charAt(0).toUpperCase();
+        sr.getElementById("settings-email").textContent =
+          this._customer.email || "";
+        sr.getElementById("settings-avatar").textContent = name
+          .charAt(0)
+          .toUpperCase();
       }
     });
 
@@ -1389,7 +1639,7 @@ class ChatWidget extends HTMLElement {
       this.logout();
     });
 
-    document.addEventListener("keydown", e => {
+    document.addEventListener("keydown", (e) => {
       if (e.key === "Escape" && this.isWidgetOpen) this.closeWidget();
     });
     // Auth events
@@ -1403,8 +1653,8 @@ class ChatWidget extends HTMLElement {
 
     authSubmit.addEventListener("click", () => this.submitAuth());
 
-    [authEmail, authPassword, authName].forEach(el => {
-      el.addEventListener("keydown", e => {
+    [authEmail, authPassword, authName].forEach((el) => {
+      el.addEventListener("keydown", (e) => {
         if (e.key === "Enter") this.submitAuth();
       });
     });
@@ -1412,7 +1662,9 @@ class ChatWidget extends HTMLElement {
 
   // ─── Widget open/close ────────────────────────────────────────────────────
 
-  toggleWidget() { this.isWidgetOpen ? this.closeWidget() : this.openWidget(); }
+  toggleWidget() {
+    this.isWidgetOpen ? this.closeWidget() : this.openWidget();
+  }
 
   // openWidget() {
   //   this.shadowRoot.getElementById("widget").classList.add("open");
@@ -1450,10 +1702,23 @@ class ChatWidget extends HTMLElement {
     this.isWidgetOpen = false;
   }
 
-  toggleAi() {
-    this.isAiEnabled = !this.isAiEnabled;
-    this.shadowRoot.getElementById("ai-toggle")
-      .classList.toggle("ai-enabled", this.isAiEnabled);
+  async toggleAi() {
+    try {
+      const aiEnabled = this.shadowRoot.getElementById("ai-toggle").checked;
+
+      const isAiEnabled = await this.trpc(
+        "chat.toggleAi",
+        { chatId: this.chatId, enabled: aiEnabled },
+        "mutation",
+      );
+
+      this.isAiEnabled = isAiEnabled;
+
+      this.shadowRoot.getElementById("ai-toggle").checked = isAiEnabled;
+      // .classList.toggle("ai-enabled", isAiEnabled);
+    } catch (err) {
+      console.error("[ChatWidget] toggle AI failed", err);
+    }
   }
 
   // ─── Chat list render ─────────────────────────────────────────────────────
@@ -1464,12 +1729,16 @@ class ChatWidget extends HTMLElement {
       list.innerHTML = `<div style="padding: 12px 10px; font-size: 12px; color: var(--text-subtle);">No chats yet</div>`;
       return;
     }
-    list.innerHTML = this.chats.map(c => `
+    list.innerHTML = this.chats
+      .map(
+        (c) => `
       <div class="chat-item${c.id === this.activeChatId ? " active" : ""}" data-id="${c.id}">
         ${this.escapeHtml(c.title || "Chat")}
         <div class="chat-item-time">${this.formatTime(new Date(c.updatedAt))}</div>
       </div>
-    `).join("");
+    `,
+      )
+      .join("");
   }
 
   // ─── Messages ─────────────────────────────────────────────────────────────
@@ -1504,7 +1773,10 @@ class ChatWidget extends HTMLElement {
     `;
     messages.appendChild(row);
     messages.scrollTop = messages.scrollHeight;
-    this.messages.push({ role: role === "user" ? "user" : "assistant", content });
+    this.messages.push({
+      role: role === "user" ? "user" : "assistant",
+      content,
+    });
   }
 
   // ─── Utilities ────────────────────────────────────────────────────────────
