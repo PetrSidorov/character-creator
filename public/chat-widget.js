@@ -876,6 +876,7 @@ class ChatWidget extends HTMLElement {
     const isLight = this.theme === "light";
     overrideStyle.textContent = `
       :host {
+        --toggle-sidebar-btn-display: none;
         --accent: ${this.primaryColor};
         --accent-dim: rgba(${rgb}, 0.15);
         --accent-glow: rgba(${rgb}, 0.25);
@@ -899,7 +900,9 @@ class ChatWidget extends HTMLElement {
       #prechat-submit { background: ${this.primaryColor} !important; }
       #send-btn { background: ${this.primaryColor} !important; }
       .online-dot { background: #22c55e; }
-      .offline-dot { background: var(--text-muted); }
+      .offline-dot { background: var(--text-muted); 
+      
+      }
     `;
 
     const topbarTitle = this.shadowRoot.getElementById("topbar-title");
@@ -1262,7 +1265,7 @@ class ChatWidget extends HTMLElement {
         }
         #sidebar-header {
           height: var(--header-h); display: flex; align-items: center; justify-content: space-between;
-          padding: 0 12px; border-bottom: 1px solid var(--border); flex-shrink: 0;
+          padding: 0 12px 0 5px; border-bottom: 1px solid var(--border); flex-shrink: 0;
         }
         #sidebar-header span { font-size: 11px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--text-muted); }
         #new-chat-btn {
@@ -1369,7 +1372,7 @@ class ChatWidget extends HTMLElement {
         .msg-row.ai { justify-content: flex-start; }
         @keyframes fadeUp { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
         .bubble {
-          max-width: 80%; padding: 10px 13px; border-radius: 16px;
+          padding: 10px 13px; border-radius: 16px;
           font-size: 14px; line-height: 1.6; word-break: break-word;
         }
         .msg-row.user .bubble { background: var(--user-bubble); border-bottom-right-radius: 4px; border: 1px solid rgba(124,106,247,0.2); }
@@ -1406,7 +1409,7 @@ class ChatWidget extends HTMLElement {
         #input::placeholder { color: var(--text-subtle); }
         #input:disabled { opacity: 0.5; cursor: not-allowed; }
         #send-btn {
-          width: 36px; height: 36px; border-radius: 10px; border: none;
+          width: 26px; height: 26px; border-radius: 10px; border: none;
           background: var(--accent); color: white; cursor: pointer;
           display: flex; align-items: center; justify-content: center;
           transition: opacity 0.15s, transform 0.1s; flex-shrink: 0;
@@ -1421,6 +1424,13 @@ class ChatWidget extends HTMLElement {
     align-items: center; justify-content: center;
     padding: 28px 24px; gap: 20px;
   }
+      #toggle-sidebar-btn {
+        width: min-content;
+        background-color: inherit;
+        border:none;
+        color: white;
+      display: var(--toggle-sidebar-btn-display);
+      }
   #auth-screen.visible { display: flex; }
   #auth-inner { width: 100%; display: flex; flex-direction: column; gap: 14px; }
   #auth-screen h3 { font-size: 15px; font-weight: 600; color: var(--text); }
@@ -1460,9 +1470,13 @@ class ChatWidget extends HTMLElement {
         <div id="shell">
           <aside id="sidebar">
             <div id="sidebar-header">
+              <button id="toggle-sidebar-btn">
+                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-panel-left-open-icon lucide-panel-left-open"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M9 3v18"/><path d="m14 9 3 3-3 3"/></svg>
+              </button>
               <span>Chats</span>
               <button id="new-chat-btn" title="New chat">+</button>
             </div>
+            
             <div id="chat-list"></div>
           </aside>
 
@@ -1559,10 +1573,10 @@ class ChatWidget extends HTMLElement {
     </div>
 
     <div id="input-area">
-              <label class="switch">
-  <input id="ai-toggle" type="checkbox" />
-  <span class="slider"></span>
-</label>
+              <!-- <label class="switch"> -->
+  <!-- <input id="ai-toggle" type="checkbox" /> -->
+  <!-- <span class="slider"></span> -->
+<!-- </label> -->
       <!-- <button id="ai-toggle" class="ai-enabled">Ai</button> -->
       <div id="input-row">
         <textarea id="input" rows="1" placeholder="Send a message…"></textarea>
@@ -1601,9 +1615,9 @@ class ChatWidget extends HTMLElement {
   bindEvents() {
     const sr = this.shadowRoot;
     //sr.getElementById("ai-toggle").addEventListener("change", () => this.toggleAi());
-    sr.getElementById("ai-toggle").addEventListener("change", () =>
-      this.toggleAi(),
-    );
+    // sr.getElementById("ai-toggle").addEventListener("change", () =>
+    //   this.toggleAi(),
+    // );
     sr.getElementById("launcher").addEventListener("click", () =>
       this.toggleWidget(),
     );
@@ -1613,10 +1627,21 @@ class ChatWidget extends HTMLElement {
     sr.getElementById("minimize-btn").addEventListener("click", () =>
       this.closeWidget(),
     );
+    const toggleSidebarBtn = sr.getElementById("toggle-sidebar-btn");
+    toggleSidebarBtn.addEventListener("click", () => {
+      this.style.setProperty("--sidebar-w", "160px");
+      this.style.setProperty("--toggle-sidebar-btn-display", "none");
+    });
 
     const input = sr.getElementById("input");
     const sendBtn = sr.getElementById("send-btn");
-
+    input.addEventListener("focus", () => {
+      this.style.setProperty("--sidebar-w", "30px");
+      this.style.setProperty("--toggle-sidebar-btn-display", "block");
+    });
+    // input.addEventListener("blur", () => {
+    //   this.style.setProperty("--sidebar-w", "160px");
+    // });
     input.addEventListener("input", () => {
       input.style.height = "auto";
       input.style.height = Math.min(input.scrollHeight, 120) + "px";
