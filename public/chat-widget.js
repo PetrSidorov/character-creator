@@ -879,6 +879,7 @@ class ChatWidget extends HTMLElement {
         --toggle-sidebar-btn-display: none;
         --accent: ${this.primaryColor};
         --accent-dim: rgba(${rgb}, 0.15);
+        --chat-list-margin-left: 0px;
         --accent-glow: rgba(${rgb}, 0.25);
         --user-bubble: ${isLight ? `rgba(${rgb}, 0.12)` : `color-mix(in srgb, ${this.primaryColor} 12%, #0a0a0b)`};
         ${
@@ -1262,6 +1263,7 @@ class ChatWidget extends HTMLElement {
           width: var(--sidebar-w); flex-shrink: 0;
           display: flex; flex-direction: column;
           background: var(--bg-raised); border-right: 1px solid var(--border);
+      transition: all 0.5s ease-in-out;
         }
         #sidebar-header {
           height: var(--header-h); display: flex; align-items: center; justify-content: space-between;
@@ -1276,7 +1278,10 @@ class ChatWidget extends HTMLElement {
           transition: background 0.15s, color 0.15s; font-size: 18px; line-height: 1;
         }
         #new-chat-btn:hover { background: var(--bg-hover); color: var(--text); }
-        #chat-list { flex: 1; overflow-y: auto; padding: 6px; display: flex; flex-direction: column; gap: 2px; }
+        #chat-list { flex: 1; overflow-y: auto; padding: 6px; display: flex; flex-direction: column; gap: 2px; 
+        margin-left: var(--chat-list-margin-left);
+      transition: all 0.5s ease-in-out;
+      }
         .chat-item {
           padding: 8px 10px; border-radius: 8px; cursor: pointer;
           font-size: 12.5px; color: var(--text-muted);
@@ -1371,6 +1376,7 @@ class ChatWidget extends HTMLElement {
         .msg-row.user { justify-content: flex-end; }
         .msg-row.ai { justify-content: flex-start; }
         @keyframes fadeUp { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
+      
         .bubble {
           padding: 10px 13px; border-radius: 16px;
           font-size: 14px; line-height: 1.6; word-break: break-word;
@@ -1403,10 +1409,10 @@ class ChatWidget extends HTMLElement {
         }
         #input {
           flex: 1; background: transparent; border: none; outline: none;
-          resize: none; color: var(--text); font-family: var(--font);
-          font-size: 14px; line-height: 1.5; min-height: 22px; max-height: 120px; overflow-y: auto;
-        }
-        #input::placeholder { color: var(--text-subtle); }
+            resize: none; color: var(--text); font-family: var(--font);
+            font-size: 14px; line-height: 1.5; min-height: 22px; max-height: 120px; overflow-y: auto;
+          }
+          #input::placeholder { color: var(--text-subtle); }
         #input:disabled { opacity: 0.5; cursor: not-allowed; }
         #send-btn {
           width: 26px; height: 26px; border-radius: 10px; border: none;
@@ -1425,6 +1431,7 @@ class ChatWidget extends HTMLElement {
     padding: 28px 24px; gap: 20px;
   }
       #toggle-sidebar-btn {
+      padding-left: 5px;
         width: min-content;
         background-color: inherit;
         border:none;
@@ -1457,7 +1464,7 @@ class ChatWidget extends HTMLElement {
   #auth-toggle span { color: var(--accent); cursor: pointer; }
   #auth-toggle span:hover { text-decoration: underline; }
   #auth-error { font-size: 12px; color: #f87171; text-align: center; min-height: 16px; }
-        @media (max-width: 860px) { #sidebar { display: none; } }
+        @media (max-width: 860px) { #sidebar { display: block; } }
       </style>
 
       <button id="launcher" aria-label="Open chat">
@@ -1631,13 +1638,15 @@ class ChatWidget extends HTMLElement {
     toggleSidebarBtn.addEventListener("click", () => {
       this.style.setProperty("--sidebar-w", "160px");
       this.style.setProperty("--toggle-sidebar-btn-display", "none");
+      this.style.setProperty("--chat-list-margin-left", "0px");
     });
 
     const input = sr.getElementById("input");
     const sendBtn = sr.getElementById("send-btn");
     input.addEventListener("focus", () => {
-      this.style.setProperty("--sidebar-w", "30px");
+      this.style.setProperty("--sidebar-w", "35px");
       this.style.setProperty("--toggle-sidebar-btn-display", "block");
+      this.style.setProperty("--chat-list-margin-left", "35px");
     });
     // input.addEventListener("blur", () => {
     //   this.style.setProperty("--sidebar-w", "160px");
